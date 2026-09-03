@@ -850,7 +850,10 @@
     background:rgba(var(--glass-rgb),.35); color:var(--muted5); font-family:var(--disp); font-weight:700;
     font-size:11.5px; cursor:pointer; transition:all .2s ease;
   }
-  .carga-tab.active{ background:var(--dash-navy); color:var(--white); border-color:var(--dash-navy); }
+  .carga-tab.active{
+    background:linear-gradient(135deg, var(--rail-2), var(--rail)); color:#fff; border-color:var(--rail);
+    box-shadow:0 3px 10px rgba(47,69,56,.35);
+  }
   .carga-cap-row{
     display:flex; align-items:center; justify-content:center; gap:10px;
     font-size:12.5px; color:var(--muted5); margin-bottom:14px; text-align:center;
@@ -866,36 +869,74 @@
     background:rgba(var(--paper-rgb),.65); font-family:var(--mono); font-size:15px; color:var(--ink);
   }
 
-  .truck-illustration{ position:relative; width:224px; height:76px; margin:0 auto 6px; }
-  .truck-illustration.small .truck-cargo-box{ width:110px; }
-  .truck-illustration.small .truck-cab{ right:56px; }
-  .truck-illustration.small .truck-wheel.w2{ left:120px; }
-  .truck-illustration.small .truck-illustration-spacer{ display:none; }
+  .truck-illustration{ position:relative; width:240px; height:88px; margin:6px auto 10px; }
+  .truck-illustration::after{
+    content:''; position:absolute; left:6px; right:14px; bottom:2px; height:6px; border-radius:50%;
+    background:radial-gradient(ellipse, rgba(0,0,0,.18), transparent 75%);
+  }
+  .truck-illustration.small .truck-cargo-box{ width:104px; height:42px; top:20px; }
+  .truck-illustration.small .truck-cab{ left:118px; }
+  .truck-illustration.small .truck-wheel.w2{ left:158px; }
+
   .truck-cargo-box{
-    position:absolute; left:0; top:6px; width:158px; height:50px;
-    border:3px solid var(--dash-navy); border-radius:6px 2px 2px 6px;
+    position:absolute; left:0; top:12px; width:156px; height:50px;
+    border:2.5px solid #33424c; border-radius:7px 3px 3px 7px;
     overflow:hidden; background:rgba(var(--glass-rgb),.5);
-    transition:width .3s ease;
+    transition:width .3s ease, height .3s ease, top .3s ease;
+    box-shadow:0 3px 8px rgba(0,0,0,.12);
+  }
+  .truck-cargo-box::before{
+    content:''; position:absolute; left:14px; top:6px; bottom:6px; width:2px; background:rgba(51,66,76,.18);
   }
   .truck-fill{
     position:absolute; left:0; bottom:0; width:0%; height:100%;
     background:linear-gradient(180deg, #4fae7a, #2f7a52);
-    transition:width .5s cubic-bezier(.2,1,.3,1), background .4s ease;
+    background-image:
+      repeating-linear-gradient(-45deg, rgba(255,255,255,.16) 0 8px, transparent 8px 16px),
+      linear-gradient(180deg, #4fae7a, #2f7a52);
+    background-size: 34px 34px, 100% 100%;
+    animation: cargaStripes 1.2s linear infinite;
+    transition:width .5s cubic-bezier(.2,1,.3,1), background-color .4s ease;
   }
-  .truck-fill.mid{ background:linear-gradient(180deg, #e0b25c, #b4823a); }
-  .truck-fill.high{ background:linear-gradient(180deg, #e0714a, #c1502e); }
+  .truck-fill.mid{
+    background-image:
+      repeating-linear-gradient(-45deg, rgba(255,255,255,.16) 0 8px, transparent 8px 16px),
+      linear-gradient(180deg, #e0b25c, #b4823a);
+  }
+  .truck-fill.high{
+    background-image:
+      repeating-linear-gradient(-45deg, rgba(255,255,255,.18) 0 8px, transparent 8px 16px),
+      linear-gradient(180deg, #e0714a, #c1502e);
+  }
+  @keyframes cargaStripes{ from{ background-position:0 0, 0 0; } to{ background-position:34px 0, 0 0; } }
+
   .truck-cab{
-    position:absolute; right:10px; top:16px; width:46px; height:40px;
-    background:var(--dash-navy); border-radius:2px 8px 8px 2px;
-    transition:right .3s ease;
+    position:absolute; left:158px; bottom:2px; width:52px; height:56px;
+    transition:left .3s ease;
   }
-  .truck-window{ position:absolute; top:6px; left:7px; width:24px; height:15px; background:rgba(255,255,255,.65); border-radius:2px; }
+  .truck-cab::before{
+    content:''; position:absolute; left:0; bottom:0; width:100%; height:36px;
+    background:#33424c; border-radius:3px 9px 9px 3px;
+  }
+  .truck-cab::after{
+    content:''; position:absolute; right:2px; bottom:34px; width:37px; height:24px;
+    background:#33424c; border-radius:0 16px 4px 0;
+    clip-path:polygon(0 100%, 100% 100%, 78% 0, 0 0);
+  }
+  .truck-window{
+    position:absolute; right:6px; bottom:38px; width:26px; height:15px;
+    background:linear-gradient(155deg, #cfe6ea, #9fc2cc);
+    border-radius:0 9px 2px 0; clip-path:polygon(0 100%, 100% 100%, 68% 0, 0 0);
+  }
   .truck-wheel{
-    position:absolute; bottom:-6px; width:20px; height:20px; border-radius:50%;
-    background:#28414f; border:4px solid var(--paper); box-shadow:0 0 0 1px var(--dash-navy);
+    position:absolute; bottom:-7px; width:24px; height:24px; border-radius:50%;
+    background:#20282e; border:4px solid var(--paper);
   }
-  .truck-wheel.w1{ left:22px; }
-  .truck-wheel.w2{ left:158px; transition:left .3s ease; }
+  .truck-wheel::after{
+    content:''; position:absolute; inset:5px; border-radius:50%; background:#7c8891;
+  }
+  .truck-wheel.w1{ left:26px; }
+  .truck-wheel.w2{ left:172px; transition:left .3s ease; }
 
   .carga-percent{
     text-align:center; font-family:var(--disp); font-weight:800; font-size:34px;
@@ -2574,7 +2615,7 @@
     if(isThisTruckActive){
       const sobra = Math.max(0, cap - metros);
       $('cargaSub').textContent = cap > 0
-        ? `Sobram ${fmtM(sobra)} m de ${fmtM(cap)} m totais · iniciada às ${formatCargaData(ativo.iniciadoEm)}`
+        ? `Sobram ${fmtM(sobra)} m · iniciada às ${new Date(ativo.iniciadoEm).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' })}`
         : `Carga iniciada às ${formatCargaData(ativo.iniciadoEm)} (defina o tamanho do baú acima)`;
       $('cargaControls').style.display = '';
       $('btnIniciarCarga').style.display = 'none';
