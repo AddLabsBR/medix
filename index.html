@@ -1822,6 +1822,17 @@
       onAuthStateChanged(auth, async (user) => {
         authUser = user;
         if(user){
+          // Verificar se o acesso deste e-mail foi revogado no painel admin
+          try{
+            const { getDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+            const bloqSnap = await getDoc(doc(db, 'medix', 'usuarios_bloqueados'));
+            const bloqueados = bloqSnap.exists() ? (bloqSnap.data().emails || []) : [];
+            if(user.email && bloqueados.includes(user.email)){
+              await signOut(auth);
+              $('loginError').textContent = 'Seu acesso foi revogado. Fale com o administrador.';
+              return;
+            }
+          }catch(err){ /* se falhar a checagem, segue o login normalmente */ }
           // Verificar si ya pasaron 12 horas desde el primer login
           const loginTs = localStorage.getItem(SESSION_KEY);
           if(loginTs && (Date.now() - Number(loginTs)) >= SESSION_DURATION_MS){
