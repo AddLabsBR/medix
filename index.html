@@ -35,8 +35,8 @@
     --rail:#16305a;
     --rail-2:#2a5a94;
     --stamp:#e0a02f;
-    --ok:#3f6b4a;
-    --ok-bg:#e3ead9;
+    --ok:#2a78d8;
+    --ok-bg:#dbe7fa;
     --pend:#b4823a;
     --pend-bg:#f3e6cc;
     --danger:#a8392f;
@@ -52,11 +52,11 @@
     --line-rgb:188,203,232;
     --rail-rgb:22,48,90;
     --accent:#16305a;
-    --muted1:#7f8fb2;
+    --muted1:#5a6b91;
     --muted2:#6f82a8;
-    --muted3:#4a5b82;
-    --muted4:#8fa4cc;
-    --muted5:#7189b3;
+    --muted3:#3b4b72;
+    --muted4:#697ca6;
+    --muted5:#4a5c85;
     --muted6:#55658a;
     --muted7:#7a8aae;
     --entry-cancel-bg:rgba(251,233,196,.75);
@@ -659,7 +659,7 @@
     --dash-navy:#16305a; --dash-navy-2:#234a7c;
     --dash-bg:#dfe8f8; --dash-card:#ffffff;
     --dash-blue:#d2e0fa; --dash-blue-ink:#1f4f9a;
-    --dash-green:#d7ecdd; --dash-green-ink:#2f7a52;
+    --dash-green:#cfe3f7; --dash-green-ink:#1f6fb2;
     --dash-teal:#dbe6fb; --dash-teal-ink:#2a5a94;
     --dash-peach:#fbe9c4; --dash-peach-ink:#a8741a;
   }
@@ -772,10 +772,10 @@
   }
   .truck-fill{
     position:absolute; right:0; bottom:0; width:0%; height:100%;
-    background:linear-gradient(180deg, #4fae7a, #2f7a52);
+    background:linear-gradient(180deg, #5aa6f2, #2a5fa8);
     background-image:
       repeating-linear-gradient(-45deg, rgba(255,255,255,.16) 0 8px, transparent 8px 16px),
-      linear-gradient(180deg, #4fae7a, #2f7a52);
+      linear-gradient(180deg, #5aa6f2, #2a5fa8);
     background-size: 34px 34px, 100% 100%;
     animation: cargaStripes 1.2s linear infinite;
     transition:width .5s cubic-bezier(.2,1,.3,1), background-color .4s ease;
@@ -788,7 +788,7 @@
   .truck-fill.high{
     background-image:
       repeating-linear-gradient(-45deg, rgba(255,255,255,.18) 0 8px, transparent 8px 16px),
-      linear-gradient(180deg, #e0714a, #e0a02f);
+      linear-gradient(180deg, #ee7d5a, #d24a3a);
   }
   @keyframes cargaStripes{ from{ background-position:0 0, 0 0; } to{ background-position:34px 0, 0 0; } }
 
@@ -946,7 +946,7 @@
     --dash-navy-2:#a9cdd6;
     --dash-bg:#12264a;
     --dash-blue:#12315e; --dash-blue-ink:#8fbcff;
-    --dash-green:#123320; --dash-green-ink:#7fe0a0;
+    --dash-green:#0f2f55; --dash-green-ink:#7fc0f5;
     --dash-teal:#0f2e55; --dash-teal-ink:#7fb5f0;
     --dash-peach:#3b2c10; --dash-peach-ink:#f2c36b;
   }
@@ -975,6 +975,33 @@
   .theme-toggle .icon-sun{ display:none; }
   html[data-theme="dark"] .theme-toggle .icon-moon{ display:none; }
   html[data-theme="dark"] .theme-toggle .icon-sun{ display:block; }
+
+  /* ===== ACABAMENTO: nitidez e consistência de cores ===== */
+  html{ -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; text-rendering:optimizeLegibility; }
+  .stat, .dash-card, .dash-panel, .panel{
+    background:rgba(var(--glass-rgb),.92);
+    border:1px solid rgba(var(--rail-rgb),.12);
+    box-shadow:0 1px 2px rgba(var(--rail-rgb),.06), 0 6px 18px rgba(var(--rail-rgb),.08);
+  }
+  header{ background:rgba(var(--glass-rgb),.94); border-bottom:1px solid rgba(var(--rail-rgb),.12); box-shadow:0 2px 12px rgba(var(--rail-rgb),.08); }
+  .conn, .hamburger-btn, .refresh-btn, .theme-toggle{ background:rgba(var(--glass-rgb),.95); border:1px solid rgba(var(--rail-rgb),.16); }
+  .field input, .field select, .header-search input, .login-field input{ border:1px solid rgba(var(--rail-rgb),.22); }
+  .field input, .field select, .header-search input{ background:rgba(var(--glass-rgb),.95); color:var(--ink); }
+  .entry{ background:rgba(var(--glass-rgb),.96); border:1px solid rgba(var(--rail-rgb),.12); box-shadow:0 1px 2px rgba(var(--rail-rgb),.06), 0 4px 12px rgba(var(--rail-rgb),.06); }
+  .stat .l{ font-size:10px; font-weight:600; color:var(--muted3); }
+  .stat .n, .dash-card .n{ color:var(--dash-navy); }
+  .dash-card .l{ font-size:12px; font-weight:500; color:var(--muted3); }
+  .dash-panel-title .tag{ color:var(--muted5); }
+  .top-row .bar-track{ background:rgba(var(--rail-rgb),.12); height:8px; }
+  .top-row .bar-fill{ display:block; background:linear-gradient(90deg, #2a78d8, #3f93f0); }
+  .top-row .val{ color:var(--muted3); font-weight:600; }
+  .top-row .name{ color:var(--ink); }
+  .donut-legend .li{ color:var(--ink); }
+  html[data-theme="dark"] .stat, html[data-theme="dark"] .dash-card, html[data-theme="dark"] .dash-panel,
+  html[data-theme="dark"] .panel, html[data-theme="dark"] .entry{ border-color:rgba(156,195,247,.16); background:rgba(var(--glass-rgb),.9); box-shadow:0 1px 2px rgba(0,0,0,.35), 0 8px 22px rgba(0,0,0,.28); }
+  html[data-theme="dark"] header{ background:rgba(var(--paper-rgb),.95); border-bottom-color:rgba(156,195,247,.16); }
+  html[data-theme="dark"] .top-row .bar-track{ background:rgba(156,195,247,.16); }
+  html[data-theme="dark"] .stat .l, html[data-theme="dark"] .dash-card .l, html[data-theme="dark"] .top-row .val{ color:var(--muted3); }
 </style>
 </head>
 <body>
@@ -1157,7 +1184,7 @@
         <div class="donut-wrap">
           <canvas id="donutChart" width="120" height="120"></canvas>
           <div class="donut-legend">
-            <div class="li"><span class="dot" style="background:#2f7a52"></span>Embarcado <b id="legOk">0%</b></div>
+            <div class="li"><span class="dot" style="background:#2a78d8"></span>Embarcado <b id="legOk">0%</b></div>
             <div class="li"><span class="dot" style="background:#e0a02f"></span>Não embarcado <b id="legCancel">0%</b></div>
           </div>
         </div>
@@ -2703,7 +2730,7 @@
         labels: ['Embarcado','Não embarcado'],
         datasets: [{
           data: totalReg ? [totalOk, totalCancel] : [1,0],
-          backgroundColor: ['#2f7a52','#e0a02f'],
+          backgroundColor: ['#2a78d8','#e0a02f'],
           borderWidth: 0,
           hoverOffset: 4
         }]
@@ -2742,8 +2769,8 @@
 
     const ctx = flowCanvas.getContext('2d');
     const gradVol = ctx.createLinearGradient(0,0,0,220);
-    gradVol.addColorStop(0, 'rgba(42,90,148,.35)');
-    gradVol.addColorStop(1, 'rgba(42,90,148,0)');
+    gradVol.addColorStop(0, 'rgba(42,120,216,.30)');
+    gradVol.addColorStop(1, 'rgba(42,120,216,0)');
     const gradReg = ctx.createLinearGradient(0,0,0,220);
     gradReg.addColorStop(0, 'rgba(224,160,47,.30)');
     gradReg.addColorStop(1, 'rgba(224,160,47,0)');
@@ -2757,12 +2784,12 @@
           {
             label: 'Volumes',
             data: volumenes,
-            borderColor: '#2a5a94',
+            borderColor: '#2a78d8',
             backgroundColor: gradVol,
             fill: true,
             tension: 0.4,
             pointRadius: 3,
-            pointBackgroundColor: '#2a5a94',
+            pointBackgroundColor: '#2a78d8',
             borderWidth: 2,
             yAxisID: 'y'
           },
