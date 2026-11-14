@@ -1931,6 +1931,92 @@
     (window.requestIdleCallback || (f => setTimeout(f, 400)))(run);
   }
 
+  // ---------- ARMAZENAMENTO POR MÊS ----------
+  // Antes: todos os registros num único documento (crescia sem parar). Agora: um documento por mês (medix/m_AAAA-MM).
+  let fsApi = null;               // módulo do Firestore (preenchido em ensureFirestore)
+  let storageMode = 'months';     // 'months' (normal) | 'legacy' (se a migração não pôde rodar agora)
+  let monthStore = {};            // mês -> lista de registros
+  const monthSig = {};            // mês -> JSON do que está salvo na nuvem (evita regravar/re-renderizar à toa)
+  let unsubEntries = null;
+  let firstEntriesSnap = true;
+  const MIG_FLAG = 'medix_schema_v2';
+  const mesDe = e => entryFecha(e).slice(0, 7);
+  function groupByMonth(list){
+    const g = {};
+    list.forEach(e => { const m = mesDe(e); (g[m] || (g[m] = [])).push(e); });
+    return g;
+  }
+  const flatMonths = () => [].concat(...Object.values(monthStore));
+
+  // Migração única: copia o documento antigo para meses, guarda um backup e esvazia o antigo (tudo numa transação atômica)
+  async function ensureMigrated(){
+    if(localStorage.getItem(MIG_FLAG) === '1') return;
+    const { doc, runTransaction } = fsApi;
+    const schemaRef = doc(db, 'medix', 'schema');
+    const legacyRef = doc(db, 'medix', 'entries');
+    const backupRef = doc(db, 'medix', 'entries_backup_v1');
+    const run = runTransaction(db, async tx => {
+      const sc = await tx.get(schemaRef);
+      if(sc.exists() && sc.data().version >= 2) return 'ja';
+      const leg = await tx.get(legacyRef);
+      const lista = (leg.exists() && !leg.data().moved) ? (leg.data().list || []) : [];
+      const g = groupByMonth(lista);
+      Object.keys(g).forEach(m => tx.set(doc(db, 'medix', 'm_' + m), { list: g[m] }));
+      if(lista.length){
+        tx.set(backupRef, { list: lista, savedAt: Date.now(), note: 'cópia de segurança antes de dividir por mês' });
+        tx.set(legacyRef, { list: [], moved: true, movedAt: Date.now() });
+      }
+      tx.set(schemaRef, { version: 2, migratedAt: Date.now(), total: lista.length });
+      return 'migrado';
+    });
+    const r = await Promise.race([run, new Promise((_, rej) => setTimeout(() => rej(new Error('migracao-timeout')), 15000))]);
+    localStorage.setItem(MIG_FLAG, '1');
+    return r;
+  }
+
+  function startEntriesListener(){
+    if(unsubEntries){ try{ unsubEntries(); }catch(e){} unsubEntries = null; }
+    firstEntriesSnap = true;
+    const { doc, onSnapshot, collection, query, where, documentId } = fsApi;
+    if(storageMode === 'legacy'){
+      unsubEntries = onSnapshot(doc(db, 'medix', 'entries'), (snap) => {
+        if(!snap.exists()) return;
+        if(snap.data().moved){ showToast('Os dados foram atualizados. Recarregue a página.'); return; }
+        const lista = snap.data().list || [];
+        const sig = JSON.stringify(lista);
+        if(sig === lastEntriesSig) return;
+        lastEntriesSig = sig; entries = lista; cacheEntries(sig); scheduleRender();
+      });
+      return;
+    }
+    const q = query(collection(db, 'medix'), where(documentId(), '>=', 'm_'), where(documentId(), '<', 'm_\uf8ff'));
+    unsubEntries = onSnapshot(q, (snap) => {
+      if(snap.empty && snap.metadata.fromCache) return; // cache vazio: espera a resposta do servidor
+      let changed = false;
+      snap.docChanges().forEach(ch => {
+        const m = ch.doc.id.slice(2);
+        if(ch.type === 'removed'){ if(m in monthStore){ delete monthStore[m]; delete monthSig[m]; changed = true; } return; }
+        const lista = ch.doc.data().list || [];
+        const sig = JSON.stringify(lista);
+        if(monthSig[m] === sig) return;   // eco da nossa própria gravação / sem mudanças
+        monthSig[m] = sig; monthStore[m] = lista; changed = true;
+      });
+      if(changed){
+        entries = flatMonths();
+        cacheEntries(JSON.stringify(entries));
+        scheduleRender();
+      }else if(firstEntriesSnap && !snap.metadata.fromCache){
+        scheduleRender();
+      }
+      if(!snap.metadata.fromCache) firstEntriesSnap = false;
+    }, (err) => {
+      console.warn('Erro ao ler registros:', err);
+      connDot.classList.add('off');
+      connText.textContent = t('conexionErrorGuardar');
+      showToast(err && err.code === 'permission-denied' ? 'Sem permissão para ler os registros (regras do Firestore).' : 'Erro ao ler os registros.');
+    });
+  }
+
   async function initFirebase(){
     if(!FIREBASE_CONFIGURED) return false;
     try{
@@ -1949,7 +2035,7 @@
       async function ensureFirestore(){
         if(db) return;
         const fsMod = await fsPromise;
-        doc = fsMod.doc; onSnapshot = fsMod.onSnapshot;
+        fsApi = fsMod; doc = fsMod.doc; onSnapshot = fsMod.onSnapshot;
         try{
           db = fsMod.initializeFirestore(app, {
             localCache: fsMod.persistentLocalCache({ tabManager: fsMod.persistentMultipleTabManager() }),
@@ -2001,17 +2087,9 @@
 
           // Escuchar datos en tiempo real (Firestore carrega em paralelo; aqui só esperamos se ainda não terminou)
           try{ await ensureFirestore(); }catch(e){ console.warn('Firestore não carregou', e); connDot.classList.add('off'); connText.textContent = t('conexionErrorGuardar'); return; }
-          onSnapshot(doc(db, 'medix', 'entries'), (snap) => {
-            if(snap.exists()){
-              const lista = snap.data().list || [];
-              const sig = JSON.stringify(lista);
-              if(sig === lastEntriesSig) return; // eco do próprio salvamento / sem mudanças
-              lastEntriesSig = sig;
-              entries = lista;
-              cacheEntries(sig);
-              scheduleRender();
-            }
-          });
+          try{ await ensureMigrated(); storageMode = 'months'; }
+          catch(e){ console.warn('Migração para meses não concluída agora:', e); storageMode = 'legacy'; showToast('Modo de compatibilidade: a divisão por mês será tentada na próxima abertura.'); }
+          startEntriesListener();
           onSnapshot(doc(db, 'medix', 'meta'), (snap) => {
             if(snap.exists() && document.activeElement !== $('reportResponsable')){
               $('reportResponsable').value = snap.data().responsable || '';
@@ -2112,9 +2190,30 @@
     await waitDb();
     if(FIREBASE_CONFIGURED && db){
       try{
-        const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+        const fs = fsApi || await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
         cacheEntries(JSON.stringify(entries));
-        const gravacao = setDoc(doc(db, 'medix', 'entries'), { list: entries });
+        let gravacao;
+        if(storageMode === 'legacy'){
+          gravacao = fs.setDoc(fs.doc(db, 'medix', 'entries'), { list: entries });
+        }else{
+          // só regrava os meses que mudaram (normalmente 1 documento pequeno)
+          const g = groupByMonth(entries);
+          monthStore = g;
+          const meses = new Set([...Object.keys(g), ...Object.keys(monthSig)]);
+          const batch = fs.writeBatch(db);
+          const anteriores = {};
+          let n = 0;
+          meses.forEach(m => {
+            const lista = g[m] || [];
+            const sig = JSON.stringify(lista);
+            if(sig === monthSig[m]) return;
+            batch.set(fs.doc(db, 'medix', 'm_' + m), { list: lista });
+            anteriores[m] = monthSig[m]; monthSig[m] = sig; n++;
+          });
+          if(!n) return true;
+          gravacao = batch.commit();
+          gravacao.catch(() => { Object.keys(anteriores).forEach(m => { if(anteriores[m] === undefined) delete monthSig[m]; else monthSig[m] = anteriores[m]; }); });
+        }
         // O Firestore já guarda no cache local; se a rede estiver lenta, não travamos a tela esperando
         const r = await Promise.race([gravacao.then(() => 'ok'), new Promise(res => setTimeout(() => res('lento'), 8000))]);
         if(r === 'lento'){ showToast('Conexão lenta — salvo no aparelho, sincroniza sozinho.'); gravacao.catch(() => {}); }
