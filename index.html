@@ -23,6 +23,21 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js">
+<link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://securetoken.googleapis.com" crossorigin>
+<script>
+  // Começa a baixar o Firebase já no início da página (em paralelo com o resto do carregamento)
+  window.__fbMods = Promise.all([
+    import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js'),
+    import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'),
+    import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js')
+  ]);
+  window.__fbMods.catch(function(){});
+</script>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script defer src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js" integrity="sha384-OUW9euuUyxyHcAhTqbhI+Iyb8LMssXt/cpz0yXhs9UWG2/R/uaWdakx/4cfww7Vb" crossorigin="anonymous"></script>
 <style>
@@ -1615,7 +1630,7 @@
   // Pantalla splash: se muestra al cargar y se oculta cuando la app
   // ya sabe si hay sesión activa o no (con un mínimo de tiempo visible
   // para que no parpadee, y un máximo de seguridad por si algo falla).
-  const SPLASH_MIN_MS = 900;
+  const SPLASH_MIN_MS = 600;
   const splashStart = Date.now();
   let splashHidden = false;
   function hideSplash(){
@@ -1854,54 +1869,86 @@
   let lastEntriesSig = '';
   let lastCargaSig = '';
 
+  // ---------- LOGIN (ativo desde o primeiro segundo; espera o Firebase só se ainda não estiver pronto) ----------
+  let signInFn = null, resolveFb, rejectFb;
+  const fbReady = new Promise((res, rej) => { resolveFb = res; rejectFb = rej; });
+  fbReady.catch(() => {});
+  let loginBusy = false;
+
+  async function doLogin(){
+    if(loginBusy) return;
+    const email    = $('loginEmail').value.trim();
+    const password = $('loginPassword').value;
+    $('loginError').textContent = '';
+    if(!email || !password){ $('loginError').textContent = 'Preencha e-mail e senha.'; return; }
+    loginBusy = true;
+    $('loginBtn').classList.add('login-loading', 'entering');
+    $('loginStatus').textContent = 'Entrando…';
+    $('loginStatus').classList.add('show');
+    const slowTimer = setTimeout(() => { $('loginStatus').textContent = 'Conexão lenta… ainda tentando'; }, 6000);
+    try{
+      const attempt = async () => {
+        await fbReady;
+        try{ return await signInFn(email, password); }
+        catch(e){ if(e && e.code === 'auth/network-request-failed'){ return await signInFn(email, password); } throw e; }
+      };
+      const timeout = new Promise((_, reject) => setTimeout(() => reject({ code: 'timeout' }), 25000));
+      await Promise.race([attempt(), timeout]);
+    }catch(err){
+      $('loginBtn').classList.remove('login-loading', 'entering');
+      $('loginStatus').classList.remove('show');
+      const msgs = {
+        'auth/invalid-credential':   'E-mail ou senha incorretos.',
+        'auth/user-not-found':       'E-mail ou senha incorretos.',
+        'auth/wrong-password':       'E-mail ou senha incorretos.',
+        'auth/too-many-requests':    'Muitas tentativas. Tente mais tarde.',
+        'auth/invalid-email':        'E-mail inválido.',
+        'auth/network-request-failed': 'Sem conexão. Verifique sua internet e tente de novo.',
+        'timeout':                   'Internet muito lenta. Tente novamente em instantes.',
+        'init':                      'Não foi possível conectar ao servidor. Verifique a internet e recarregue a página.',
+      };
+      $('loginError').textContent = msgs[err && err.code] || 'Erro ao entrar. Tente novamente.';
+    }finally{
+      clearTimeout(slowTimer);
+      loginBusy = false;
+    }
+  }
+  $('loginBtn').addEventListener('click', doLogin);
+  $('loginPassword').addEventListener('keydown', e => { if(e.key === 'Enter') doLogin(); });
+
+  // cache local dos registros: abre o painel na hora enquanto o Firebase conecta
+  const CACHE_KEY = 'medix_entries_cache';
+  function cacheEntries(raw){
+    const run = () => { try{ localStorage.setItem(CACHE_KEY, raw); }catch(e){} };
+    (window.requestIdleCallback || (f => setTimeout(f, 400)))(run);
+  }
+
   async function initFirebase(){
     if(!FIREBASE_CONFIGURED) return false;
     try{
-      const [ appMod, fsMod, authMod ] = await Promise.all([
+      const [ appMod, fsMod, authMod ] = await (window.__fbMods || Promise.all([
         import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js'),
         import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'),
         import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js')
-      ]);
+      ]));
       const { initializeApp } = appMod;
-      const { getFirestore, doc, setDoc, onSnapshot } = fsMod;
-      const { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } = authMod;
+      const { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, setDoc, onSnapshot } = fsMod;
+      const { getAuth, initializeAuth, indexedDBLocalPersistence, browserLocalPersistence, signInWithEmailAndPassword, signOut, onAuthStateChanged } = authMod;
 
-      const app  = initializeApp(FIREBASE_CONFIG);
-      db         = getFirestore(app);
-      const auth = getAuth(app);
-
-      // ---- LOGIN ----
-      $('loginBtn').addEventListener('click', async () => {
-        const email    = $('loginEmail').value.trim();
-        const password = $('loginPassword').value;
-        $('loginError').textContent = '';
-        if(!email || !password){ $('loginError').textContent = 'Preencha e-mail e senha.'; return; }
-        $('loginBtn').classList.add('login-loading', 'entering');
-        $('loginStatus').textContent = 'Entrando…';
-        $('loginStatus').classList.add('show');
-        try{
-          const timeout = new Promise((_, reject) => setTimeout(() => reject({ code: 'timeout' }), 12000));
-          await Promise.race([signInWithEmailAndPassword(auth, email, password), timeout]);
-        }catch(err){
-          $('loginBtn').classList.remove('login-loading', 'entering');
-          $('loginStatus').classList.remove('show');
-          const msgs = {
-            'auth/invalid-credential':   'E-mail ou senha incorretos.',
-            'auth/user-not-found':       'E-mail ou senha incorretos.',
-            'auth/wrong-password':       'E-mail ou senha incorretos.',
-            'auth/too-many-requests':    'Muitas tentativas. Tente mais tarde.',
-            'auth/invalid-email':        'E-mail inválido.',
-            'auth/network-request-failed': 'Sem conexão. Abra pelo link do site (não pelo arquivo local).',
-            'timeout':                   'Demorou demais. Verifique sua internet e tente novamente.',
-          };
-          $('loginError').textContent = msgs[err.code] || 'Erro ao entrar. Tente novamente.';
-        }
-      });
-
-      // permitir login con Enter
-      $('loginPassword').addEventListener('keydown', e => {
-        if(e.key === 'Enter') $('loginBtn').click();
-      });
+      const app = initializeApp(FIREBASE_CONFIG);
+      // Firestore: cache local (abre instantâneo e funciona com internet fraca) + detecção automática de long-polling
+      try{
+        db = initializeFirestore(app, {
+          localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+          experimentalAutoDetectLongPolling: true
+        });
+      }catch(e){ db = getFirestore(app); }
+      // Auth: só e-mail/senha — sem carregar o iframe/gapi de login com popup (mais rápido)
+      let auth;
+      try{ auth = initializeAuth(app, { persistence: [indexedDBLocalPersistence, browserLocalPersistence] }); }
+      catch(e){ auth = getAuth(app); }
+      signInFn = (email, password) => signInWithEmailAndPassword(auth, email, password);
+      resolveFb();
 
       // ---- LOGOUT ----
       $('logoutBtn').addEventListener('click', async () => {
@@ -1944,6 +1991,7 @@
               if(sig === lastEntriesSig) return; // eco do próprio salvamento / sem mudanças
               lastEntriesSig = sig;
               entries = lista;
+              cacheEntries(sig);
               scheduleRender();
             }
           });
@@ -1977,6 +2025,7 @@
         } else {
           // No autenticado — mostrar login
           localStorage.removeItem(SESSION_KEY);
+          try{ localStorage.removeItem(CACHE_KEY); }catch(e){}
           $('loginScreen').classList.remove('hidden');
           $('logoutBtn').style.display = 'none';
           $('loginBtn').classList.remove('login-loading', 'entering');
@@ -2045,7 +2094,11 @@
     if(FIREBASE_CONFIGURED && db){
       try{
         const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-        await setDoc(doc(db, 'medix', 'entries'), { list: entries });
+        cacheEntries(JSON.stringify(entries));
+        const gravacao = setDoc(doc(db, 'medix', 'entries'), { list: entries });
+        // O Firestore já guarda no cache local; se a rede estiver lenta, não travamos a tela esperando
+        const r = await Promise.race([gravacao.then(() => 'ok'), new Promise(res => setTimeout(() => res('lento'), 8000))]);
+        if(r === 'lento'){ showToast('Conexão lenta — salvo no aparelho, sincroniza sozinho.'); gravacao.catch(() => {}); }
         connDot.classList.remove('off');
         connText.textContent = t('conexionNube');
         return true;
@@ -3058,10 +3111,28 @@
     hideSplash();
   } else {
     connText.textContent = t('conexionConectando');
+    // Sessão ainda válida neste aparelho? Mostra o painel na hora com os últimos dados salvos
+    const _ts = Number(localStorage.getItem(SESSION_KEY) || 0);
+    const _sessaoValida = _ts && (Date.now() - _ts) < SESSION_DURATION_MS;
+    if(_sessaoValida){
+      try{
+        const cached = localStorage.getItem(CACHE_KEY);
+        if(cached){
+          entries = JSON.parse(cached);
+          $('loginScreen').classList.add('hidden');
+          $('logoutBtn').style.display = 'block';
+          render();
+          hideSplash();
+        }
+      }catch(e){}
+    }else{
+      hideSplash(); // sem sessão: o login aparece imediatamente
+    }
     initFirebase().then(ok => {
       if(!ok){
+        rejectFb({ code: 'init' });
         // Firebase falló, usar localStorage como respaldo
-        loadEntries();
+        if(!entries.length) loadEntries();
         loadReportMeta();
         hideSplash();
       }
@@ -3071,5 +3142,10 @@
 })();
 </script>
 
+<script>
+  if('serviceWorker' in navigator && location.protocol === 'https:'){
+    window.addEventListener('load', function(){ navigator.serviceWorker.register('sw.js').catch(function(){}); });
+  }
+</script>
 </body>
 </html>
