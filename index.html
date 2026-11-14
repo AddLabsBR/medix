@@ -31,12 +31,12 @@
 <link rel="preconnect" href="https://securetoken.googleapis.com" crossorigin>
 <script>
   // Começa a baixar o Firebase já no início da página (em paralelo com o resto do carregamento)
-  window.__fbMods = Promise.all([
-    import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js'),
-    import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'),
-    import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js')
-  ]);
-  window.__fbMods.catch(function(){});
+  // App + Auth (leves) são o que o login precisa; o Firestore (pesado) carrega em paralelo e só é exigido depois de entrar
+  window.__t0 = performance.now();
+  window.__fbApp  = import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
+  window.__fbAuth = import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
+  window.__fbFs   = import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+  window.__fbApp.catch(function(){}); window.__fbAuth.catch(function(){}); window.__fbFs.catch(function(){});
 </script>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script defer src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js" integrity="sha384-OUW9euuUyxyHcAhTqbhI+Iyb8LMssXt/cpz0yXhs9UWG2/R/uaWdakx/4cfww7Vb" crossorigin="anonymous"></script>
@@ -1870,10 +1870,12 @@
   let lastCargaSig = '';
 
   // ---------- LOGIN (ativo desde o primeiro segundo; espera o Firebase só se ainda não estiver pronto) ----------
-  let signInFn = null, resolveFb, rejectFb;
+  let signInFn = null, resolveFb, rejectFb, fbIsReady = false;
   const fbReady = new Promise((res, rej) => { resolveFb = res; rejectFb = rej; });
   fbReady.catch(() => {});
   let loginBusy = false;
+  // Se já entrou mas o Firestore ainda está terminando de carregar, espera um instante antes de gravar (evita gravar só no aparelho)
+  async function waitDb(){ if(!FIREBASE_CONFIGURED || db || !authUser) return; for(let i = 0; i < 80 && !db; i++) await new Promise(r => setTimeout(r, 100)); }
 
   async function doLogin(){
     if(loginBusy) return;
@@ -1885,7 +1887,12 @@
     $('loginBtn').classList.add('login-loading', 'entering');
     $('loginStatus').textContent = 'Entrando…';
     $('loginStatus').classList.add('show');
-    const slowTimer = setTimeout(() => { $('loginStatus').textContent = 'Conexão lenta… ainda tentando'; }, 6000);
+    const t0 = performance.now();
+    const slowTimer = setInterval(() => {
+      const sec = Math.round((performance.now() - t0) / 1000);
+      if(sec < 4) return;
+      $('loginStatus').textContent = (fbIsReady ? 'Verificando e-mail e senha' : 'Carregando o Firebase') + '… ' + sec + 's';
+    }, 1000);
     try{
       const attempt = async () => {
         await fbReady;
@@ -1904,12 +1911,13 @@
         'auth/too-many-requests':    'Muitas tentativas. Tente mais tarde.',
         'auth/invalid-email':        'E-mail inválido.',
         'auth/network-request-failed': 'Sem conexão. Verifique sua internet e tente de novo.',
-        'timeout':                   'Internet muito lenta. Tente novamente em instantes.',
+        'timeout':                   (fbIsReady ? 'O servidor de login não respondeu. ' : 'O Firebase não terminou de carregar. ') + 'Tente novamente.',
         'init':                      'Não foi possível conectar ao servidor. Verifique a internet e recarregue a página.',
       };
       $('loginError').textContent = msgs[err && err.code] || 'Erro ao entrar. Tente novamente.';
     }finally{
-      clearTimeout(slowTimer);
+      clearInterval(slowTimer);
+      window.__tLogin = Math.round(performance.now() - t0);
       loginBusy = false;
     }
   }
@@ -1926,28 +1934,36 @@
   async function initFirebase(){
     if(!FIREBASE_CONFIGURED) return false;
     try{
-      const [ appMod, fsMod, authMod ] = await (window.__fbMods || Promise.all([
-        import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js'),
-        import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'),
-        import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js')
-      ]));
+      const [ appMod, authMod ] = await Promise.all([
+        window.__fbApp  || import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js'),
+        window.__fbAuth || import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js')
+      ]);
+      const fsPromise = window.__fbFs || import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
       const { initializeApp } = appMod;
-      const { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, setDoc, onSnapshot } = fsMod;
       const { getAuth, initializeAuth, indexedDBLocalPersistence, browserLocalPersistence, signInWithEmailAndPassword, signOut, onAuthStateChanged } = authMod;
-
       const app = initializeApp(FIREBASE_CONFIG);
-      // Firestore: cache local (abre instantâneo e funciona com internet fraca) + detecção automática de long-polling
-      try{
-        db = initializeFirestore(app, {
-          localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
-          experimentalAutoDetectLongPolling: true
-        });
-      }catch(e){ db = getFirestore(app); }
+      window.__tModules = Math.round(performance.now() - window.__t0);
+
+      // Firestore só é preparado depois do login (não atrasa a tela de entrada)
+      let doc, onSnapshot;
+      async function ensureFirestore(){
+        if(db) return;
+        const fsMod = await fsPromise;
+        doc = fsMod.doc; onSnapshot = fsMod.onSnapshot;
+        try{
+          db = fsMod.initializeFirestore(app, {
+            localCache: fsMod.persistentLocalCache({ tabManager: fsMod.persistentMultipleTabManager() }),
+            experimentalAutoDetectLongPolling: true
+          });
+        }catch(e){ db = fsMod.getFirestore(app); }
+        window.__tFirestore = Math.round(performance.now() - window.__t0);
+      }
       // Auth: só e-mail/senha — sem carregar o iframe/gapi de login com popup (mais rápido)
       let auth;
       try{ auth = initializeAuth(app, { persistence: [indexedDBLocalPersistence, browserLocalPersistence] }); }
       catch(e){ auth = getAuth(app); }
       signInFn = (email, password) => signInWithEmailAndPassword(auth, email, password);
+      fbIsReady = true;
       resolveFb();
 
       // ---- LOGOUT ----
@@ -1983,7 +1999,8 @@
           connText.textContent = t('conexionNube');
           hideSplash();
 
-          // Escuchar datos en tiempo real
+          // Escuchar datos en tiempo real (Firestore carrega em paralelo; aqui só esperamos se ainda não terminou)
+          try{ await ensureFirestore(); }catch(e){ console.warn('Firestore não carregou', e); connDot.classList.add('off'); connText.textContent = t('conexionErrorGuardar'); return; }
           onSnapshot(doc(db, 'medix', 'entries'), (snap) => {
             if(snap.exists()){
               const lista = snap.data().list || [];
@@ -2080,6 +2097,7 @@
 
   async function saveReportMeta(){
     const responsable = $('reportResponsable').value.trim();
+    await waitDb();
     if(FIREBASE_CONFIGURED && db){
       try{
         const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
@@ -2091,6 +2109,7 @@
   }
 
   async function saveEntries(){
+    await waitDb();
     if(FIREBASE_CONFIGURED && db){
       try{
         const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
@@ -2657,6 +2676,7 @@
       email: $('pfEmail').value.trim(),
       foto: profilePhotoData
     };
+    await waitDb();
     if(FIREBASE_CONFIGURED && db && authUser && authUser.uid){
       try{
         const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
@@ -2756,6 +2776,7 @@
   }
 
   async function saveCargaState(){
+    await waitDb();
     if(FIREBASE_CONFIGURED && db){
       try{
         const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
