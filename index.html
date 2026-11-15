@@ -31,6 +31,32 @@
 <link rel="preconnect" href="https://securetoken.googleapis.com" crossorigin>
 <script>
   // Começa a baixar o Firebase já no início da página (em paralelo com o resto do carregamento)
+  // Monitor leve das chamadas ao Google (para diagnosticar lentidão de login) + aquecimento da conexão
+  (function(){
+    var pend = {}, seq = 0, hist = [];
+    var orig = window.fetch;
+    window.fetch = function(input, init){
+      var url = (typeof input === 'string') ? input : (input && input.url) || '';
+      if(url.indexOf('googleapis.com') === -1) return orig.apply(this, arguments);
+      var id = ++seq, t = performance.now(), name = url.replace(/^https:\/\/([^\/]+)\/(?:v\d\/)?/, '$1/').split('?')[0].slice(0, 60);
+      pend[id] = { name: name, t: t };
+      var p = orig.apply(this, arguments);
+      var done = function(st){ delete pend[id]; hist.push(name + ' ' + Math.round(performance.now() - t) + 'ms ' + st); if(hist.length > 12) hist.shift(); };
+      p.then(function(r){ done(r.status); }, function(){ done('ERRO'); });
+      return p;
+    };
+    window.__netPending = function(){
+      var now = performance.now(), out = [];
+      for(var k in pend) out.push(pend[k].name + ' (' + Math.round((now - pend[k].t) / 1000) + 's)');
+      return out;
+    };
+    window.__netHistory = function(){ return hist.slice(); };
+    // abre DNS + TLS dos servidores de login antes de o usuário apertar "Entrar"
+    try{
+      window.fetch('https://identitytoolkit.googleapis.com/', { mode: 'no-cors', cache: 'no-store' }).catch(function(){});
+      window.fetch('https://securetoken.googleapis.com/', { mode: 'no-cors', cache: 'no-store' }).catch(function(){});
+    }catch(e){}
+  })();
   // App + Auth (leves) são o que o login precisa; o Firestore (pesado) carrega em paralelo e só é exigido depois de entrar
   window.__t0 = performance.now();
   window.__fbApp  = import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
@@ -1892,6 +1918,10 @@
       const sec = Math.round((performance.now() - t0) / 1000);
       if(sec < 4) return;
       $('loginStatus').textContent = (fbIsReady ? 'Verificando e-mail e senha' : 'Carregando o Firebase') + '… ' + sec + 's';
+      let d = $('loginDiag');
+      if(!d){ d = document.createElement('p'); d.id = 'loginDiag'; d.style.cssText = 'text-align:center;font-size:11px;opacity:.65;margin:4px 0 0;font-family:var(--mono)'; $('loginStatus').after(d); }
+      const pend = window.__netPending ? window.__netPending() : [];
+      d.textContent = pend.length ? 'rede: ' + pend.join(' · ') : 'rede: nenhuma chamada pendente (espera local)';
     }, 1000);
     try{
       const attempt = async () => {
@@ -1917,6 +1947,7 @@
       $('loginError').textContent = msgs[err && err.code] || 'Erro ao entrar. Tente novamente.';
     }finally{
       clearInterval(slowTimer);
+      const dg = $('loginDiag'); if(dg){ dg.textContent = ''; }
       window.__tLogin = Math.round(performance.now() - t0);
       loginBusy = false;
     }
@@ -2046,7 +2077,7 @@
       }
       // Auth: só e-mail/senha — sem carregar o iframe/gapi de login com popup (mais rápido)
       let auth;
-      try{ auth = initializeAuth(app, { persistence: [indexedDBLocalPersistence, browserLocalPersistence] }); }
+      try{ auth = initializeAuth(app, { persistence: [browserLocalPersistence, indexedDBLocalPersistence] }); }
       catch(e){ auth = getAuth(app); }
       signInFn = (email, password) => signInWithEmailAndPassword(auth, email, password);
       fbIsReady = true;
