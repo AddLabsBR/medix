@@ -521,12 +521,13 @@
     display:block; font-size:10.5px; text-transform:uppercase; letter-spacing:1px;
     color:var(--muted6); margin-bottom:6px; font-weight:600; font-family:var(--disp);
   }
-  .field input, .field select{
+  .field input, .field select, .field textarea{
     width:100%; padding:13px 12px; border:1px solid rgba(var(--line-rgb),.7); border-radius:12px;
     font-family:var(--mono); font-size:16px; background:rgba(var(--paper-rgb),.65); color:var(--ink);
     font-weight:500;
   }
-  .field input:focus, .field select:focus{ outline:none; border-color:var(--rail-2); background:rgba(var(--glass-rgb),.85); }
+  .field textarea{ min-height:120px; resize:vertical; line-height:1.4; display:block; box-sizing:border-box; }
+  .field input:focus, .field select:focus, .field textarea:focus{ outline:none; border-color:var(--rail-2); background:rgba(var(--glass-rgb),.85); }
   .row2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
 
   .btn{
@@ -1086,8 +1087,8 @@
   }
   header{ background:rgba(var(--glass-rgb),.94); border-bottom:1px solid rgba(var(--rail-rgb),.12); box-shadow:0 2px 12px rgba(var(--rail-rgb),.08); }
   .conn, .hamburger-btn, .refresh-btn, .theme-toggle{ background:rgba(var(--glass-rgb),.95); border:1px solid rgba(var(--rail-rgb),.16); }
-  .field input, .field select, .header-search input, .login-field input{ border:1px solid rgba(var(--rail-rgb),.22); }
-  .field input, .field select, .header-search input{ background:rgba(var(--glass-rgb),.95); color:var(--ink); }
+  .field input, .field select, .field textarea, .header-search input, .login-field input{ border:1px solid rgba(var(--rail-rgb),.22); }
+  .field input, .field select, .field textarea, .header-search input{ background:rgba(var(--glass-rgb),.95); color:var(--ink); }
   .entry{ background:rgba(var(--glass-rgb),.96); border:1px solid rgba(var(--rail-rgb),.12); box-shadow:0 1px 2px rgba(var(--rail-rgb),.06), 0 4px 12px rgba(var(--rail-rgb),.06); }
   .stat .l{ font-size:10px; font-weight:600; color:var(--muted3); }
   .stat .n, .dash-card .n{ color:var(--dash-navy); }
@@ -1626,7 +1627,7 @@
     </div>
     <div class="field">
       <label for="fNotas" data-i18n="lblObservacionesOpcional">Notas (opcional)</label>
-      <input id="fNotas" type="text" data-i18n-placeholder="phObservaciones" placeholder="Observaciones, transportista, etc.">
+      <textarea id="fNotas" rows="5" data-i18n-placeholder="phObservaciones" placeholder="Observaciones, transportista, etc."></textarea>
     </div>
     <label class="checkbox-field" for="fCancelada">
       <input id="fCancelada" type="checkbox">
@@ -2436,7 +2437,7 @@
         <div class="entry-grid">
           <div><span class="k">${t('etiquetaCantidad')}</span><span class="v">${escapeHtml(String(e.cantidad)) || '0'}</span></div>
           <div style="grid-column:1/-1"><span class="k">${t('etiquetaDestino')}</span><span class="v">${escapeHtml(e.destino) || '—'}</span></div>
-          ${e.notas ? `<div style="grid-column:1/-1"><span class="k">${t('etiquetaNotas')}</span><span class="v">${escapeHtml(e.notas)}</span></div>` : ''}
+          ${e.notas ? `<div style="grid-column:1/-1"><span class="k">${t('etiquetaNotas')}</span><span class="v" style="white-space:pre-wrap">${escapeHtml(e.notas)}</span></div>` : ''}
         </div>
         <div class="entry-meta">
           <span>${fmtDate(e.fecha)}</span>
@@ -2725,7 +2726,7 @@
         <td class="nf">${escH(e.nota)}</td>
         <td class="c">${e.cantidad ? escH(e.cantidad) : '—'}</td>
         <td class="c"><span class="sheet-uf">${escH((e.destino||'—').toUpperCase())}</span></td>
-        <td>${e.cancelada ? '<span class="sheet-badge">'+t('estadoCancelada')+'</span> ' : ''}${escH(e.notas)}</td>
+        <td>${e.cancelada ? '<span class="sheet-badge">'+t('estadoCancelada')+'</span> ' : ''}<span style="white-space:pre-wrap">${escH(e.notas)}</span></td>
       </tr>`).join('') : '';
     $('sheetPaper').innerHTML = `
       <div class="sheet-head">
