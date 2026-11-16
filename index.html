@@ -37,7 +37,7 @@
     var orig = window.fetch;
     window.fetch = function(input, init){
       var url = (typeof input === 'string') ? input : (input && input.url) || '';
-      if(url.indexOf('googleapis.com') === -1) return orig.apply(this, arguments);
+      if(url.indexOf('googleapis.com') === -1 || /googleapis\.com\/$/.test(url)) return orig.apply(this, arguments);
       var id = ++seq, t = performance.now(), name = url.replace(/^https:\/\/([^\/]+)\/(?:v\d\/)?/, '$1/').split('?')[0].slice(0, 60);
       pend[id] = { name: name, t: t };
       var p = orig.apply(this, arguments);
@@ -53,8 +53,13 @@
     window.__netHistory = function(){ return hist.slice(); };
     // abre DNS + TLS dos servidores de login antes de o usuário apertar "Entrar"
     try{
-      window.fetch('https://identitytoolkit.googleapis.com/', { mode: 'no-cors', cache: 'no-store' }).catch(function(){});
-      window.fetch('https://securetoken.googleapis.com/', { mode: 'no-cors', cache: 'no-store' }).catch(function(){});
+      var c = navigator.connection, weak = c && (c.saveData || /(^|-)2g$/.test(c.effectiveType || ''));
+      if(!weak && window.AbortController){
+        var ac = new AbortController();
+        setTimeout(function(){ try{ ac.abort(); }catch(e){} }, 4000);
+        window.fetch('https://identitytoolkit.googleapis.com/', { mode: 'no-cors', cache: 'no-store', signal: ac.signal }).catch(function(){});
+        window.fetch('https://securetoken.googleapis.com/', { mode: 'no-cors', cache: 'no-store', signal: ac.signal }).catch(function(){});
+      }
     }catch(e){}
   })();
   // App + Auth (leves) são o que o login precisa; o Firestore (pesado) carrega em paralelo e só é exigido depois de entrar
@@ -1886,7 +1891,7 @@
   const ENTRIES_KEY     = 'medix_entries';
   const SESSION_KEY          = 'medix_login_ts';
   const PROFILE_KEY = 'medix_user_profile';
-  const SESSION_DURATION_MS  = 12 * 60 * 60 * 1000; // 12 horas
+  const SESSION_DURATION_MS  = 7 * 24 * 60 * 60 * 1000; // 7 dias
 
   let db = null;
 
@@ -2099,7 +2104,7 @@
       onAuthStateChanged(auth, async (user) => {
         authUser = user;
         if(user){
-          // Verificar si ya pasaron 12 horas desde el primer login
+          // Verificar si ya pasaron 7 dias desde el primer login
           const loginTs = localStorage.getItem(SESSION_KEY);
           if(loginTs && (Date.now() - Number(loginTs)) >= SESSION_DURATION_MS){
             localStorage.removeItem(SESSION_KEY);
@@ -2160,7 +2165,7 @@
         }
       });
 
-      // Verificar cada minuto si la sesión ya superó las 12 horas
+      // Verificar cada minuto si la sesión ya superó los 7 dias
       // (por si la pestaña queda abierta más tiempo del permitido)
       setInterval(() => {
         const loginTs = localStorage.getItem(SESSION_KEY);
