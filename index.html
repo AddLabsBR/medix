@@ -70,7 +70,6 @@
   window.__fbApp.catch(function(){}); window.__fbAuth.catch(function(){}); window.__fbFs.catch(function(){});
 </script>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<script defer src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js" integrity="sha384-OUW9euuUyxyHcAhTqbhI+Iyb8LMssXt/cpz0yXhs9UWG2/R/uaWdakx/4cfww7Vb" crossorigin="anonymous"></script>
 <style>
   :root{
     --ink:#14213d;
@@ -902,6 +901,63 @@
   .carga-hist-empty{ font-size:12px; color:var(--muted5); text-align:center; padding:6px 0; }
   .dash-empty{ text-align:center; padding:24px; color:var(--muted1); font-size:12px; }
 
+  /* ===== Folha de registros (relatório dentro do sistema) ===== */
+  #sheetOverlay{ display:none; position:fixed; inset:0; z-index:920; background:rgba(14,28,52,.55); backdrop-filter:blur(4px); overflow-y:auto; -webkit-overflow-scrolling:touch; }
+  #sheetOverlay.open{ display:block; }
+  .sheet-wrap{ max-width:760px; margin:0 auto; padding:14px 14px calc(96px + env(safe-area-inset-bottom)); }
+  .sheet-toolbar{ display:flex; align-items:center; gap:10px; margin-bottom:12px; color:#fff; }
+  .sheet-toolbar h3{ margin:0; font-family:var(--disp); font-size:15px; font-weight:700; flex:1; }
+  .sheet-x{ width:38px; height:38px; border-radius:12px; border:0; background:rgba(255,255,255,.16); color:#fff; display:grid; place-items:center; cursor:pointer; }
+  .sheet-x svg{ width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2.2; stroke-linecap:round; }
+  .sheet-date{ border:0; border-radius:12px; padding:9px 12px; font:600 13px var(--disp); background:rgba(255,255,255,.95); color:#16305a; }
+  .sheet-paper{ background:#fff; color:#16305a; border-radius:20px; overflow:hidden; box-shadow:0 24px 60px rgba(8,20,44,.35); }
+  .sheet-head{ display:flex; align-items:center; gap:14px; padding:20px 22px; color:#fff; background:linear-gradient(135deg,#16305a 0%,#2a5a94 100%); }
+  .sheet-logo{ width:54px; height:54px; border-radius:15px; background:#fff; display:grid; place-items:center; flex:none; }
+  .sheet-logo img{ width:70%; height:70%; object-fit:contain; }
+  .sheet-title{ font-family:var(--disp); font-size:20px; font-weight:800; line-height:1.15; }
+  .sheet-sub{ font-size:11px; letter-spacing:.16em; text-transform:uppercase; opacity:.75; margin-top:3px; font-weight:600; }
+  .sheet-meta{ display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:#e3ecf6; border-bottom:1px solid #e3ecf6; }
+  .sheet-meta div{ background:#f6f9fd; padding:11px 14px; min-width:0; }
+  .sheet-meta small{ display:block; font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; color:#6b7f9c; font-weight:700; }
+  .sheet-meta b{ display:block; font-family:var(--disp); font-size:14px; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .sheet-table{ width:100%; border-collapse:collapse; font-size:13px; }
+  .sheet-table th{ text-align:left; font-size:10px; letter-spacing:.09em; text-transform:uppercase; color:#6b7f9c; padding:11px 12px; border-bottom:2px solid #16305a; background:#fff; }
+  .sheet-table td{ padding:10px 12px; border-bottom:1px solid #e9eff7; vertical-align:top; }
+  .sheet-table tbody tr:nth-child(even) td{ background:#f8fbfe; }
+  .sheet-table .c{ text-align:center; }
+  .sheet-table .n{ color:#8a9bb5; font-weight:600; width:34px; }
+  .sheet-table .nf{ font-family:var(--mono); font-weight:700; letter-spacing:.02em; }
+  .sheet-uf{ display:inline-block; min-width:30px; padding:2px 8px; border-radius:8px; background:#e6f1fb; color:#2a5a94; font-weight:800; font-size:12px; text-align:center; }
+  .sheet-table tr.cx td{ color:#b3362f; }
+  .sheet-table tr.cx .nf{ text-decoration:line-through; }
+  .sheet-badge{ display:inline-block; font-size:10px; font-weight:700; padding:2px 8px; border-radius:20px; background:#fdecea; color:#b3362f; }
+  .sheet-table tfoot td{ border-top:2px solid #16305a; border-bottom:0; font-weight:800; font-family:var(--disp); background:#eef4fb !important; }
+  .sheet-empty{ text-align:center; padding:40px 20px; color:#6b7f9c; font-size:13px; }
+  .sheet-foot{ display:flex; justify-content:space-between; gap:10px; padding:12px 22px; font-size:10.5px; color:#8a9bb5; border-top:1px solid #e9eff7; }
+  .sheet-actions{ position:fixed; left:0; right:0; bottom:0; z-index:5; display:flex; flex-wrap:wrap; justify-content:center; gap:8px; padding:12px 14px calc(12px + env(safe-area-inset-bottom)); background:rgba(14,28,52,.88); backdrop-filter:blur(8px); }
+  .sheet-actions button{ flex:1 1 0; min-width:76px; max-width:150px; display:flex; flex-direction:column; align-items:center; gap:4px; border:0; border-radius:14px; padding:9px 6px; font:700 11px var(--disp); color:#fff; background:rgba(255,255,255,.12); cursor:pointer; }
+  .sheet-actions button.pri{ background:linear-gradient(135deg,#2aa3dc,#2a5a94); }
+  .sheet-actions svg{ width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
+  .sheet-mail{ width:100%; max-width:420px; display:none; }
+  .sheet-mail.open{ display:block; }
+  .sheet-mail input{ width:100%; box-sizing:border-box; border:0; border-radius:12px; padding:10px 12px; font:500 14px var(--disp); }
+  @media (max-width:520px){
+    .sheet-meta{ grid-template-columns:repeat(2,1fr); }
+    .sheet-table th, .sheet-table td{ padding:9px 8px; }
+    .sheet-head{ padding:16px; }
+  }
+  @media print{
+    @page{ size:A4; margin:12mm; }
+    body.sheet-open > *:not(#sheetOverlay){ display:none !important; }
+    body.sheet-open{ background:#fff !important; }
+    #sheetOverlay{ position:static !important; background:#fff !important; backdrop-filter:none !important; overflow:visible !important; }
+    .sheet-wrap{ max-width:none; padding:0; }
+    .sheet-toolbar, .sheet-actions{ display:none !important; }
+    .sheet-paper{ box-shadow:none; border-radius:0; }
+    .sheet-head, .sheet-meta div, .sheet-table tbody tr:nth-child(even) td, .sheet-table tfoot td, .sheet-uf, .sheet-badge{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    .sheet-table tr{ break-inside:avoid; }
+  }
+
   /* Modal de nuevo registro (antes formPanel fijo), modal de perfil e modal de confirmação */
   #formModalOverlay, #profileModalOverlay, #confirmModalOverlay{
     display:none; position:fixed; inset:0; z-index:900;
@@ -1621,14 +1677,31 @@
 </div>
 
 
-<button class="fab fab-secondary fab-export" id="fabExport" title="Exportar a Excel">
-  <svg viewBox="0 0 24 24"><path d="M12 3v12"></path><polyline points="7 10 12 15 17 10"></polyline><path d="M4 19h16"></path></svg>
+<button class="fab fab-secondary fab-export" id="fabExport" title="Folha de registros">
+  <svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path><path d="M14 3v5h5M9 13h6M9 17h6"></path></svg>
 </button>
 <button class="fab fab-secondary" id="fabList" title="Ver lista completa">
   <svg class="icon-eye" viewBox="0 0 24 24"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>
   <svg class="icon-close" viewBox="0 0 24 24" style="display:none"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
 </button>
 <button class="fab" id="fabAdd" title="Nuevo registro">+</button>
+
+<div id="sheetOverlay" aria-hidden="true">
+  <div class="sheet-wrap">
+    <div class="sheet-toolbar">
+      <h3>Folha de registros</h3>
+      <input type="date" id="sheetDate" class="sheet-date">
+      <button class="sheet-x" id="sheetClose" aria-label="Fechar"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+    </div>
+    <div class="sheet-paper" id="sheetPaper"></div>
+  </div>
+  <div class="sheet-actions">
+    <div class="sheet-mail" id="sheetMail"><input id="sheetMailTo" type="email" placeholder="E-mail do destinatário (opcional)" autocomplete="email"></div>
+    <button class="pri" id="sheetPrint"><svg viewBox="0 0 24 24"><path d="M6 9V3h12v6"></path><rect x="3" y="9" width="18" height="9" rx="2"></rect><path d="M7 14h10v7H7z"></path></svg>Imprimir / PDF</button>
+    <button id="sheetEmail"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="m3 7 9 6 9-6"></path></svg>E-mail</button>
+    <button id="sheetShare"><svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"></path></svg>Compartilhar</button>
+  </div>
+</div>
 
 <div id="confirmModalOverlay">
   <div class="panel confirm-panel" id="confirmModal">
@@ -2524,94 +2597,6 @@
     if(ok) showToast(t('toastRegistroEliminado'));
   }
 
-  function exportExcel(){
-    const registrosDelDia = entries.filter(e => entryFecha(e) === getReporteFecha());
-    if(registrosDelDia.length === 0){
-      showToast(t('toastSinRegistrosExportar'));
-      return;
-    }
-    const responsableReporte = $('reportResponsable').value.trim() || t('excelGuion');
-    const fechaReporte = $('reportFecha').value
-      ? formatFechaManual($('reportFecha').value)
-      : new Date().toLocaleDateString('pt-BR');
-
-    const wsData = [];
-    wsData.push(['Eagle Solutions']);
-    wsData.push([t('excelTitulo')]);
-    wsData.push([t('excelResponsable'), responsableReporte]);
-    wsData.push([t('excelFecha'), fechaReporte]);
-    wsData.push([]);
-
-    const headers = [t('colNumero'), t('colNotaFiscal'), t('colCantidad'), t('colDestino'), t('colEstado'), t('colObservaciones')];
-    wsData.push(headers);
-
-    const sorted = registrosDelDia.sort((a,b)=> new Date(a.fecha) - new Date(b.fecha));
-    sorted.forEach((e, i) => {
-      wsData.push([
-        i + 1,
-        e.nota || '', e.cantidad ? Number(e.cantidad) : '', e.destino || '',
-        e.cancelada ? t('estadoCancelada') : '',
-        e.notas || ''
-      ]);
-    });
-
-    const notasSinCancelar = sorted.filter(e => !e.cancelada);
-    const totalNotas = notasSinCancelar.length;
-    const totalVolumenes = notasSinCancelar.reduce((s,e)=> s + (parseInt(e.cantidad)||0), 0);
-    const totalRowIdx = wsData.length;
-    wsData.push([`${t('colTotal')} (${totalNotas})`, '', totalVolumenes, '', '', '']);
-
-    const ws = XLSX.utils.aoa_to_sheet(wsData);
-
-    ws['!cols'] = [
-      {wch:18}, {wch:16}, {wch:10}, {wch:10}, {wch:18}, {wch:28}
-    ];
-
-    if(ws['A1']) ws['A1'].s = { font:{ bold:true, sz:13, color:{ rgb:'C1502E' } } };
-    if(ws['A2']) ws['A2'].s = { font:{ bold:true, sz:14 } };
-    ['A3','A4'].forEach(ref => { if(ws[ref]) ws[ref].s = { font:{ bold:true } }; });
-
-    const headerRowIdx = 5; // índice 0-based — ahora es fila 6 (Eagle Solutions ocupa fila 1)
-    for(let c = 0; c < headers.length; c++){
-      const ref = XLSX.utils.encode_cell({r:headerRowIdx, c});
-      if(ws[ref]) ws[ref].s = { font:{ bold:true } };
-    }
-
-    // Columnas: 0=Número, 1=Nota Fiscal, 2=Cantidad, 3=Destino(UF), 4=Estado, 5=Observaciones
-    sorted.forEach((e, i) => {
-      const rowIdx = headerRowIdx + 1 + i;
-      const isCancelada = !!e.cancelada;
-      const isPR = (e.destino || '').trim().toUpperCase() === 'PR';
-      for(let c = 0; c < headers.length; c++){
-        const ref = XLSX.utils.encode_cell({r:rowIdx, c});
-        if(!ws[ref]) continue;
-        const style = {};
-        if(c === 0 || c === 2 || c === 3){
-          style.alignment = { horizontal:'center', vertical:'center' };
-        }
-        if(isPR){
-          style.font = { color:{ rgb:'008000' }, bold:true };
-        } else if(isCancelada){
-          style.font = { color:{ rgb:'FF0000' } };
-        }
-        ws[ref].s = style;
-      }
-    });
-
-    // Estilo de la fila de total
-    const totalLabelRef = XLSX.utils.encode_cell({r:totalRowIdx, c:0});
-    if(ws[totalLabelRef]) ws[totalLabelRef].s = { font:{ bold:true } };
-    const totalVolumenesRef = XLSX.utils.encode_cell({r:totalRowIdx, c:2});
-    if(ws[totalVolumenesRef]) ws[totalVolumenesRef].s = { font:{ bold:true }, alignment:{ horizontal:'center' } };
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Relatório MEDIX');
-
-    const fechaArchivo = getReporteFecha();
-    XLSX.writeFile(wb, `relatorio_medix_${fechaArchivo}.xlsx`);
-    showToast(t('toastExcelDescargado'));
-  }
-
   function backupData(){
     if(entries.length === 0){
       showToast(t('toastSinRegistrosRespaldar'));
@@ -2714,7 +2699,103 @@
 
   // ---------- EVENTS ----------
   $('btnGuardar').addEventListener('click', handleSave);
-  $('fabExport').addEventListener('click', exportExcel);
+  // ---------- FOLHA DE REGISTROS (relatório dentro do sistema) ----------
+  const escH = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  function sheetData(){
+    const dia = getReporteFecha();
+    const rows = entries.filter(e => entryFecha(e) === dia).sort((a,b)=> new Date(a.fecha) - new Date(b.fecha));
+    const ok = rows.filter(e => !e.cancelada);
+    return {
+      dia, rows,
+      nOk: ok.length,
+      nCx: rows.length - ok.length,
+      vol: ok.reduce((s,e)=> s + (parseInt(e.cantidad)||0), 0),
+      resp: ($('reportResponsable').value || '').trim() || '—',
+      dataBr: formatFechaManual(dia)
+    };
+  }
+  function renderSheet(){
+    const d = sheetData();
+    $('sheetDate').value = d.dia;
+    const logo = (document.querySelector('.login-logo .brand-mark') || {}).src || '';
+    const body = d.rows.length ? d.rows.map((e,i)=>`
+      <tr class="${e.cancelada ? 'cx' : ''}">
+        <td class="n">${i+1}</td>
+        <td class="nf">${escH(e.nota)}</td>
+        <td class="c">${e.cantidad ? escH(e.cantidad) : '—'}</td>
+        <td class="c"><span class="sheet-uf">${escH((e.destino||'—').toUpperCase())}</span></td>
+        <td>${e.cancelada ? '<span class="sheet-badge">'+t('estadoCancelada')+'</span> ' : ''}${escH(e.notas)}</td>
+      </tr>`).join('') : '';
+    $('sheetPaper').innerHTML = `
+      <div class="sheet-head">
+        <div class="sheet-logo"><img src="${logo}" alt=""></div>
+        <div><div class="sheet-title">${t('excelTitulo')}</div><div class="sheet-sub">Eagle Solutions</div></div>
+      </div>
+      <div class="sheet-meta">
+        <div><small>Data</small><b>${d.dataBr}</b></div>
+        <div><small>Responsável</small><b>${escH(d.resp)}</b></div>
+        <div><small>Notas</small><b>${d.nOk}${d.nCx ? ' <span style="color:#b3362f;font-weight:600;font-size:11px">+'+d.nCx+' não emb.</span>' : ''}</b></div>
+        <div><small>Volumes</small><b>${d.vol}</b></div>
+      </div>
+      ${d.rows.length ? `<table class="sheet-table">
+        <thead><tr><th>#</th><th>${t('colNotaFiscal')}</th><th class="c">${t('colCantidad')}</th><th class="c">${t('colDestino')}</th><th>${t('colObservaciones')}</th></tr></thead>
+        <tbody>${body}</tbody>
+        <tfoot><tr><td></td><td>${t('colTotal')} (${d.nOk})</td><td class="c">${d.vol}</td><td></td><td></td></tr></tfoot>
+      </table>` : '<div class="sheet-empty">Nenhum registro nesta data.</div>'}
+      <div class="sheet-foot"><span>Gerado em ${new Date().toLocaleString('pt-BR')}</span><span>MEDIX · Eagle Solutions</span></div>`;
+  }
+  function openSheet(){
+    renderSheet();
+    try{ $('sheetMailTo').value = localStorage.getItem('medix_sheet_mail') || ''; }catch(e){}
+    $('sheetOverlay').classList.add('open');
+    document.body.classList.add('sheet-open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeSheet(){
+    $('sheetOverlay').classList.remove('open');
+    $('sheetMail').classList.remove('open');
+    document.body.classList.remove('sheet-open');
+    document.body.style.overflow = '';
+  }
+  function sheetText(max){
+    const d = sheetData();
+    let txt = `${t('excelTitulo')} — Eagle Solutions\nData: ${d.dataBr}\nResponsável: ${d.resp}\n\n`;
+    d.rows.forEach((e,i)=>{
+      txt += `${i+1}. NF ${e.nota} · ${e.cantidad||'—'} vol. · ${(e.destino||'—').toUpperCase()}${e.cancelada ? ' · ' + t('estadoCancelada') : ''}${e.notas ? ' · ' + e.notas : ''}\n`;
+    });
+    txt += `\nTotal: ${d.nOk} notas · ${d.vol} volumes`;
+    if(max && txt.length > max) txt = txt.slice(0, max) + '…\n(lista completa no arquivo Excel / impressão)';
+    return txt;
+  }
+  $('fabExport').addEventListener('click', openSheet);
+  $('sheetClose').addEventListener('click', closeSheet);
+  $('sheetOverlay').addEventListener('click', e => { if(e.target.id === 'sheetOverlay' || e.target.classList.contains('sheet-wrap')) closeSheet(); });
+  $('sheetDate').addEventListener('change', () => {
+    if(!$('sheetDate').value) return;
+    $('reportFecha').value = $('sheetDate').value;
+    $('reportFecha').dispatchEvent(new Event('input', {bubbles:true}));
+    $('reportFecha').dispatchEvent(new Event('change', {bubbles:true}));
+    renderSheet();
+  });
+  $('sheetPrint').addEventListener('click', () => { renderSheet(); setTimeout(() => window.print(), 80); });
+  $('sheetEmail').addEventListener('click', () => {
+    const m = $('sheetMail');
+    if(!m.classList.contains('open')){ m.classList.add('open'); $('sheetMailTo').focus(); return; }
+    const to = $('sheetMailTo').value.trim();
+    try{ localStorage.setItem('medix_sheet_mail', to); }catch(e){}
+    const d = sheetData();
+    location.href = 'mailto:' + encodeURIComponent(to) + '?subject=' + encodeURIComponent(`${t('excelTitulo')} — ${d.dataBr}`) + '&body=' + encodeURIComponent(sheetText(1500));
+  });
+  $('sheetShare').addEventListener('click', async () => {
+    const d = sheetData();
+    if(!d.rows.length){ showToast(t('toastSinRegistrosExportar')); return; }
+    const data = { title: `${t('excelTitulo')} — ${d.dataBr}`, text: sheetText(0) };
+    try{
+      if(navigator.share) await navigator.share(data);
+      else if(navigator.clipboard){ await navigator.clipboard.writeText(data.text); showToast('Resumo copiado'); }
+    }catch(e){ /* cancelado */ }
+  });
+  document.addEventListener('keydown', e => { if(e.key === 'Escape' && $('sheetOverlay').classList.contains('open')) closeSheet(); });
   $('btnBackup').addEventListener('click', backupData);
   $('btnRestore').addEventListener('click', () => $('fileRestore').click());
   $('btnDrive').addEventListener('click', subirDrive);
